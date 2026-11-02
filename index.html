@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#262624">
+<title>Ore</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:#262624;color:#ece9e1;font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+body{padding:max(14px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inset-bottom));max-width:520px;margin:0 auto}
+.top{display:flex;gap:10px;margin-bottom:14px}
+.card{flex:1;background:#30302e;border-radius:14px;padding:12px 14px}
+.card small{display:block;color:#9a978e;font-size:12px;margin-bottom:4px}
+.card b{font-size:21px;font-weight:600;white-space:nowrap}
+.card.r{text-align:right}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.nav button{background:#30302e;border:0;color:#ece9e1;width:44px;height:40px;border-radius:10px;font-size:20px}
+.nav h2{margin:0;font-size:19px;font-weight:600;text-transform:capitalize}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;touch-action:pan-y}
+.wd{text-align:center;color:#9a978e;font-size:12px;padding:4px 0}
+.day{aspect-ratio:1/1.05;background:#30302e;border-radius:9px;padding:5px 4px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;font-size:14px;cursor:pointer}
+.day.empty{background:transparent;cursor:default}
+.day.fest{background:#4a4219;color:#ffd84d}
+.day.oggi{outline:2px solid #d97757;outline-offset:-2px}
+.day .t{font-size:12px;color:#c9c5b9;min-height:15px}
+.day.fest .t{color:#ffe58a}
+.tools{display:flex;gap:8px;margin-top:18px}
+.tools button{flex:1;background:#30302e;border:0;color:#9a978e;padding:11px;border-radius:10px;font-size:13px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.ov.on{display:flex}
+.sheet{background:#30302e;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px max(18px,env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
+.sheet h3{margin:0 0 2px;font-size:18px;text-transform:capitalize}
+.fn{color:#ffd84d;font-size:13px;margin-bottom:8px}
+.row{display:flex;align-items:center;gap:8px;margin:10px 0}
+.row .n{color:#9a978e;font-size:12px;width:44px}
+.row input{flex:1;min-width:0;background:#262624;border:1px solid #444441;color:#ece9e1;border-radius:9px;padding:10px 6px;font-size:16px;text-align:center}
+.row .d{width:52px;text-align:right;font-size:14px;color:#c9c5b9}
+.row .d.bad{color:#e5675b}
+.row .x{background:none;border:0;color:#e5675b;font-size:20px;width:30px}
+.add{width:100%;background:#262624;border:1px dashed #5a5853;color:#ece9e1;padding:11px;border-radius:10px;font-size:15px;margin-top:4px}
+.tot{display:flex;justify-content:space-between;margin:16px 0 12px;font-size:16px}
+.tot b{font-size:18px}
+.close{width:100%;background:#d97757;border:0;color:#fff;padding:13px;border-radius:11px;font-size:16px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="card"><small>Ore del mese</small><b id="tOre">0h 00m</b></div>
+  <div class="card r"><small>Stipendio stimato</small><b id="tEur">0,00 €</b></div>
+</div>
+<div class="nav">
+  <button id="prev">‹</button><h2 id="titolo"></h2><button id="next">›</button>
+</div>
+<div class="grid" id="wd"></div>
+<div class="grid" id="cal"></div>
+<div class="tools">
+  <button id="exp">Esporta backup</button>
+  <button id="imp">Importa backup</button>
+  <input type="file" id="file" accept=".json" hidden>
+</div>
+
+<div class="ov" id="ov">
+  <div class="sheet">
+    <h3 id="mTit"></h3>
+    <div class="fn" id="mFest"></div>
+    <div id="mRows"></div>
+    <button class="add" id="mAdd">+ Aggiungi turno</button>
+    <div class="tot"><span>Totale giorno</span><b id="mTot">0:00</b></div>
+    <button class="close" id="mClose">Chiudi</button>
+  </div>
+</div>
+
+<script>
+const KEY='ore_lavoro_v1', RATE=10;
+const MESI=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+let data={};
+try{data=JSON.parse(localStorage.getItem(KEY))||{};}catch(e){data={};}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}}
+
+const pad=n=>String(n).padStart(2,'0');
+const dkey=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
+const toMin=t=>{if(!t)return null;const [h,m]=t.split(':').map(Number);return h*60+m;};
+const dur=s=>{const a=toMin(s.s),b=toMin(s.e);return(a==null||b==null||b<=a)?0:b-a;};
+const dayTot=k=>(data[k]||[]).reduce((t,s)=>t+dur(s),0);
+const fmtH=m=>`${Math.floor(m/60)}:${pad(m%60)}`;
+
+function easter(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),
+  g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+  l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+  mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  return [mo-1,da];
+}
+function holidays(y){
+  const h={'0-1':'Capodanno','0-6':'Epifania','3-25':'Festa della Liberazione','4-1':'Festa del Lavoro',
+  '5-2':'Festa della Repubblica','7-15':'Ferragosto','10-1':'Ognissanti','11-8':'Immacolata',
+  '11-25':'Natale','11-26':'Santo Stefano'};
+  const [em,ed]=easter(y);
+  h[em+'-'+ed]='Pasqua';
+  const p=new Date(y,em,ed+1);
+  h[p.getMonth()+'-'+p.getDate()]='Pasquetta';
+  return h;
+}
+
+const now=new Date();
+let Y=now.getFullYear(), M=now.getMonth();
+let openKey=null;
+
+const $=id=>document.getElementById(id);
+$('wd').innerHTML=['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(x=>`<div class="wd">${x}</div>`).join('');
+
+function render(){
+  $('titolo').textContent=`${MESI[M]} ${Y}`;
+  const fest=holidays(Y);
+  const first=(new Date(Y,M,1).getDay()+6)%7;
+  const n=new Date(Y,M+1,0).getDate();
+  let html='', tot=0;
+  for(let i=0;i<first;i++) html+='<div class="day empty"></div>';
+  for(let d=1;d<=n;d++){
+    const k=dkey(Y,M,d), t=dayTot(k);
+    tot+=t;
+    const isF=fest[M+'-'+d]!==undefined;
+    const isT=(d===now.getDate()&&M===now.getMonth()&&Y===now.getFullYear());
+    html+=`<div class="day${isF?' fest':''}${isT?' oggi':''}" data-d="${d}"><span>${d}</span><span class="t">${t?fmtH(t):''}</span></div>`;
+  }
+  $('cal').innerHTML=html;
+  $('tOre').textContent=`${Math.floor(tot/60)}h ${pad(tot%60)}m`;
+  const cents=Math.round(tot*RATE*100/60);
+  $('tEur').textContent=(cents/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
+}
+
+function changeMonth(delta){
+  M+=delta;
+  if(M<0){M=11;Y--;} if(M>11){M=0;Y++;}
+  render();
+}
+$('prev').onclick=()=>changeMonth(-1);
+$('next').onclick=()=>changeMonth(1);
+
+// swipe
+let sx=0, sy=0;
+const calEl=$('cal');
+calEl.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+calEl.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.5) changeMonth(dx<0?1:-1);
+},{passive:true});
+
+// click giorno
+calEl.addEventListener('click',e=>{
+  const c=e.target.closest('.day[data-d]');
+  if(c) openDay(+c.dataset.d);
+});
+
+function openDay(d){
+  openKey=dkey(Y,M,d);
+  const dt=new Date(Y,M,d);
+  const nomi=['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
+  $('mTit').textContent=`${nomi[dt.getDay()]} ${d} ${MESI[M]}`;
+  $('mFest').textContent=holidays(Y)[M+'-'+d]||'';
+  if(!data[openKey]||!data[openKey].length) data[openKey]=[{s:'',e:''}];
+  drawRows();
+  $('ov').classList.add('on');
+}
+
+function drawRows(){
+  const arr=data[openKey];
+  $('mRows').innerHTML=arr.map((s,i)=>`
+    <div class="row" data-i="${i}">
+      <span class="n">Turno ${i+1}</span>
+      <input type="time" class="s" value="${s.s}">
+      <input type="time" class="e" value="${s.e}">
+      <span class="d">${durText(s)}</span>
+      <button class="x">×</button>
+    </div>`).join('');
+  updTot();
+}
+function durText(s){
+  if(!s.s||!s.e) return '';
+  const m=dur(s);
+  return m?fmtH(m):'—';
+}
+function updTot(){ $('mTot').textContent=fmtH(dayTot(openKey)); }
+
+$('mRows').addEventListener('change',e=>{
+  const row=e.target.closest('.row'); if(!row) return;
+  const s=data[openKey][+row.dataset.i];
+  s.s=row.querySelector('.s').value;
+  s.e=row.querySelector('.e').value;
+  const dEl=row.querySelector('.d');
+  dEl.textContent=durText(s);
+  dEl.classList.toggle('bad',!!(s.s&&s.e&&!dur(s)));
+  updTot(); save(); render();
+});
+$('mRows').addEventListener('click',e=>{
+  if(!e.target.classList.contains('x')) return;
+  const i=+e.target.closest('.row').dataset.i;
+  data[openKey].splice(i,1);
+  if(!data[openKey].length) data[openKey]=[{s:'',e:''}];
+  drawRows(); save(); render();
+});
+$('mAdd').onclick=()=>{ data[openKey].push({s:'',e:''}); drawRows(); };
+
+function closeDay(){
+  if(openKey){
+    data[openKey]=data[openKey].filter(s=>s.s||s.e);
+    if(!data[openKey].length) delete data[openKey];
+    save(); render();
+  }
+  openKey=null;
+  $('ov').classList.remove('on');
+}
+$('mClose').onclick=closeDay;
+$('ov').addEventListener('click',e=>{ if(e.target===$('ov')) closeDay(); });
+
+// backup
+$('exp').onclick=()=>{
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`ore-backup-${dkey(now.getFullYear(),now.getMonth(),now.getDate())}.json`;
+  a.click();
+};
+$('imp').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(typeof j!=='object'||Array.isArray(j)) throw 0;
+      if(confirm('Sostituire i dati attuali con il backup?')){ data=j; save(); render(); }
+    }catch(err){ alert('File non valido'); }
+  };
+  r.readAsText(f);
+  e.target.value='';
+};
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if(navigator.storage&&navigator.storage.persist) navigator.storage.persist();
+
+render();
+</script>
+</body>
+</html>
