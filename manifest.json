@@ -1,7 +1,8 @@
 {
+  "id": "ore-v2",
   "name": "Ore",
   "short_name": "Ore",
-  "start_url": "./",
+  "start_url": "./?pwa=2",
   "scope": "./",
   "display": "standalone",
   "background_color": "#262624",
