@@ -30,6 +30,8 @@ body{padding:max(14px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inse
 .day.fest .t{color:#ffe58a}
 .tools{display:flex;gap:8px;margin-top:18px}
 .tools button{flex:1;background:#30302e;border:0;color:#9a978e;padding:11px;border-radius:10px;font-size:13px}
+.upd{display:flex;justify-content:flex-end;margin-top:6px}
+.upd button{background:none;border:0;color:#6f6c64;font-size:12px;padding:8px 4px}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:5}
 .ov.on{display:flex}
 .sheet{background:#30302e;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px max(18px,env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
@@ -62,6 +64,7 @@ body{padding:max(14px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inse
   <button id="imp">Importa backup</button>
   <input type="file" id="file" accept=".json" hidden>
 </div>
+<div class="upd"><button id="upd">↻ Aggiorna app</button></div>
 
 <div class="ov" id="ov">
   <div class="sheet">
@@ -238,6 +241,21 @@ $('file').onchange=e=>{
   };
   r.readAsText(f);
   e.target.value='';
+};
+
+// aggiornamento forzato: svuota cache e service worker (i dati restano), poi ricarica
+$('upd').onclick=async()=>{
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if(window.caches){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+  }catch(e){}
+  location.replace(location.pathname+'?v='+Date.now());
 };
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
