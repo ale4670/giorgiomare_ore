@@ -20,7 +20,8 @@ body{padding:max(14px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inse
 .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .nav button{background:#30302e;border:0;color:#ece9e1;width:44px;height:40px;border-radius:10px;font-size:20px}
 .nav h2{margin:0;font-size:19px;font-weight:600;text-transform:capitalize}
-.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;touch-action:pan-y}
+.grid{display:grid;grid-template-columns:repeat(7,1fr) 1.15fr;gap:4px;touch-action:pan-y}
+.wk{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#d97757}
 .wd{text-align:center;color:#9a978e;font-size:12px;padding:4px 0}
 .day{aspect-ratio:1/1.05;background:#30302e;border-radius:9px;padding:5px 4px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;font-size:14px;cursor:pointer}
 .day.empty{background:transparent;cursor:default}
@@ -114,21 +115,30 @@ let Y=now.getFullYear(), M=now.getMonth();
 let openKey=null;
 
 const $=id=>document.getElementById(id);
-$('wd').innerHTML=['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(x=>`<div class="wd">${x}</div>`).join('');
+$('wd').innerHTML=['Lun','Mar','Mer','Gio','Ven','Sab','Dom','Tot'].map(x=>`<div class="wd">${x}</div>`).join('');
 
 function render(){
   $('titolo').textContent=`${MESI[M]} ${Y}`;
   const fest=holidays(Y);
   const first=(new Date(Y,M,1).getDay()+6)%7;
   const n=new Date(Y,M+1,0).getDate();
-  let html='', tot=0;
-  for(let i=0;i<first;i++) html+='<div class="day empty"></div>';
-  for(let d=1;d<=n;d++){
-    const k=dkey(Y,M,d), t=dayTot(k);
-    tot+=t;
-    const isF=fest[M+'-'+d]!==undefined;
-    const isT=(d===now.getDate()&&M===now.getMonth()&&Y===now.getFullYear());
-    html+=`<div class="day${isF?' fest':''}${isT?' oggi':''}" data-d="${d}"><span>${d}</span><span class="t">${t?fmtH(t):''}</span></div>`;
+  const rows=Math.ceil((first+n)/7);
+  let html='', tot=0, w=0;
+  for(let i=0;i<rows*7;i++){
+    const d=i-first+1;
+    if(d<1||d>n) html+='<div class="day empty"></div>';
+    else{
+      const k=dkey(Y,M,d), t=dayTot(k);
+      tot+=t; w+=t;
+      const isF=fest[M+'-'+d]!==undefined;
+      const isT=(d===now.getDate()&&M===now.getMonth()&&Y===now.getFullYear());
+      html+=`<div class="day${isF?' fest':''}${isT?' oggi':''}" data-d="${d}"><span>${d}</span><span class="t">${t?fmtH(t):''}</span></div>`;
+    }
+    if(i%7===6){
+      // totale della riga: solo i giorni del mese visualizzato
+      html+=`<div class="wk">${w?fmtH(w):''}</div>`;
+      w=0;
+    }
   }
   $('cal').innerHTML=html;
   $('tOre').textContent=`${Math.floor(tot/60)}h ${pad(tot%60)}m`;
